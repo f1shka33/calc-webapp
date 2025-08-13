@@ -2,114 +2,221 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Telegram WebApp Calculator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Гарант · WebApp</title>
+  <meta name="description" content="Красивая WebApp-панель гаранта прямо в Telegram.">
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #4e54c8, #8f94fb);
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
+    :root{
+      --bg:#0d0f1a; --bg2:#12152a; --txt:#e8ecff; --muted:#a8b0d8;
+      --border:rgba(255,255,255,0.14); --acc1:#8b5cf6; --acc2:#22d3ee;
+      --good:#22c55e; --bad:#ef4444; --shadow:0 18px 40px rgba(0,0,0,0.45);
+      --radius:22px;
     }
-    .calculator {
-      background: rgba(255, 255, 255, 0.15);
-      backdrop-filter: blur(10px);
-      border-radius: 20px;
-      padding: 20px;
-      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
-      width: 320px;
-    }
-    .display {
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 10px;
-      padding: 15px;
-      font-size: 1.8rem;
-      text-align: right;
-      margin-bottom: 15px;
-      color: white;
-      min-height: 40px;
-    }
-    .buttons {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-    }
-    button {
-      padding: 15px;
-      font-size: 1.2rem;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      background: rgba(255, 255, 255, 0.25);
-      color: white;
-      transition: background 0.3s;
-    }
-    button:hover {
-      background: rgba(255, 255, 255, 0.4);
-    }
-    .equal {
-      grid-column: span 2;
-      background: #ff9f1a;
-    }
-    .equal:hover {
-      background: #ffb84d;
-    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    body{background: radial-gradient(1100px 820px at 10% 0%, var(--bg2), var(--bg)); color:var(--txt);}
+    .wrap{min-height:100%;display:grid;place-items:center;padding:16px}
+    .app{width:min(980px,100%);background:linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03));
+      border:1px solid var(--border);border-radius:26px;box-shadow:var(--shadow);backdrop-filter:blur(14px);overflow:hidden}
+    .top{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(0,0,0,0.10)}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:800}
+    .badge{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:4px 8px;border-radius:999px}
+    .grid{display:grid;grid-template-columns:280px 1fr;gap:14px;padding:14px}
+    .panel{background:linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.04));border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+    .menu{display:grid;gap:10px}
+    .menu .item{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:14px;cursor:pointer;background:rgba(255,255,255,0.06);transition:transform .06s ease, background .2s ease}
+    .menu .item:hover{background:rgba(255,255,255,0.09)} .menu .item:active{transform:translateY(1px) scale(.995)}
+    .content{display:grid;gap:14px}
+    .card{background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+    h2{margin:0 0 10px 0;font-size:20px}
+    .muted{color:var(--muted);font-size:13px}
+    .row{display:grid;gap:10px;grid-template-columns:repeat(2,1fr)}
+    .input{display:flex;flex-direction:column;gap:6px}
+    .input input,.input select,.input textarea{width:100%;padding:12px;border-radius:12px;border:1px solid var(--border);background:rgba(0,0,0,0.25);color:inherit;outline:none}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 14px;border-radius:14px;border:1px solid var(--border);cursor:pointer;background:linear-gradient(180deg,var(--acc1),var(--acc2));color:#0a0f1f;font-weight:800;transition:transform .06s ease, filter .2s ease;text-decoration:none}
+    .btn:hover{filter:brightness(1.06)} .btn:active{transform:translateY(1px) scale(.995)}
+    .ghost{background:rgba(255,255,255,0.06);color:inherit;font-weight:600}
+    .pill{border-radius:999px;padding:8px 12px;font-size:12px;border:1px solid var(--border);color:var(--muted)}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap}
+    @media(max-width:860px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-  <div class="calculator">
-    <div class="display" id="display"></div>
-    <div class="buttons">
-      <button onclick="clearDisplay()">C</button>
-      <button onclick="appendValue('/')">÷</button>
-      <button onclick="appendValue('*')">×</button>
-      <button onclick="appendValue('-')">−</button>
+<div class="wrap">
+  <div class="app" id="app">
+    <div class="top">
+      <div class="brand">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12a8 8 0 1 1 16 0 .8.8 0 1 1-1.6 0 6.4 6.4 0 1 0-6.4 6.4.8.8 0 1 1 0 1.6A8 8 0 0 1 4 12Z" fill="currentColor"/></svg>
+        <span>Гарант · WebApp</span>
+      </div>
+      <span class="badge" id="who">Гость</span>
+    </div>
 
-      <button onclick="appendValue('7')">7</button>
-      <button onclick="appendValue('8')">8</button>
-      <button onclick="appendValue('9')">9</button>
-      <button onclick="appendValue('+')">+</button>
+    <div class="grid">
+      <div class="panel">
+        <div class="menu">
+          <div class="item" data-tab="deal">🧾 Создать сделку</div>
+          <div class="item" data-tab="wallets">💳 Кошельки</div>
+          <div class="item" data-tab="ref">🧲 Рефералка</div>
+          <div class="item" data-tab="profile">👤 Профиль</div>
+          <div class="item" data-tab="lang">🌐 Язык</div>
+          <div class="item" data-tab="help">🛟 Поддержка</div>
+        </div>
+      </div>
 
-      <button onclick="appendValue('4')">4</button>
-      <button onclick="appendValue('5')">5</button>
-      <button onclick="appendValue('6')">6</button>
-      <button onclick="appendValue('.')">.</button>
+      <div class="content">
+        <div class="card" id="tab-deal">
+          <h2>🧾 Создать сделку</h2>
+          <div class="row">
+            <div class="input">
+              <label>Сумма</label>
+              <input id="amount" type="number" min="0" step="0.01" placeholder="Например, 1500" />
+            </div>
+            <div class="input">
+              <label>Метод оплаты</label>
+              <select id="method">
+                <option value="ton">TON</option>
+                <option value="sbp">RUB (СБП/карта)</option>
+                <option value="stars">Telegram Stars</option>
+              </select>
+            </div>
+          </div>
+          <div class="input" style="margin-top:10px">
+            <label>Описание</label>
+            <textarea id="descr" rows="3" placeholder="Что продаёте/покупаете, условия, дедлайны..."></textarea>
+          </div>
+          <div class="toolbar" style="margin-top:12px">
+            <button class="btn" id="create-deal">Создать сделку</button>
+            <span class="pill">Сделка создаётся от вашего имени. Ссылку на оплату бот пришлёт в чат.</span>
+          </div>
+        </div>
 
-      <button onclick="appendValue('1')">1</button>
-      <button onclick="appendValue('2')">2</button>
-      <button onclick="appendValue('3')">3</button>
-      <button class="equal" onclick="calculate()">=</button>
+        <div class="card" id="tab-wallets" style="display:none">
+          <h2>💳 Кошельки</h2>
+          <div class="row">
+            <div class="input"><label>TON-кошелёк</label><input id="ton" type="text" placeholder="UQ... или EQ..." /></div>
+            <div class="input"><label>Карта/СБП (RUB)</label><input id="card" type="text" placeholder="Банк + последние 4 цифры или ID СБП" /></div>
+          </div>
+          <div class="toolbar" style="margin-top:12px">
+            <button class="btn ghost" id="save-ton">Сохранить TON</button>
+            <button class="btn ghost" id="save-card">Сохранить карту</button>
+          </div>
+        </div>
 
-      <button onclick="appendValue('0')">0</button>
+        <div class="card" id="tab-ref" style="display:none">
+          <h2>🧲 Рефералка</h2>
+          <p class="muted">Нажмите, чтобы получить персональную ссылку — бот пришлёт её в чат.</p>
+          <div class="toolbar" style="margin-top:12px"><button class="btn" id="get-ref">Получить ссылку</button></div>
+        </div>
+
+        <div class="card" id="tab-profile" style="display:none">
+          <h2>👤 Профиль</h2>
+          <p class="muted" id="profile-line">Ваш профиль подтянется из Telegram.</p>
+          <div class="toolbar" style="margin-top:12px"><button class="btn ghost" id="close-app">Закрыть WebApp</button></div>
+        </div>
+
+        <div class="card" id="tab-lang" style="display:none">
+          <h2>🌐 Язык</h2>
+          <div class="toolbar">
+            <button class="btn ghost" data-lang="ru">Русский</button>
+            <button class="btn ghost" data-lang="en">English</button>
+          </div>
+          <p class="muted" style="margin-top:8px">Бот подтвердит смену языка сообщением в чате.</p>
+        </div>
+
+        <div class="card" id="tab-help" style="display:none">
+          <h2>🛟 Поддержка</h2>
+          <p class="muted">Нажмите, чтобы открыть чат поддержки в Telegram.</p>
+          <div class="toolbar" style="margin-top:12px">
+            <a class="btn" id="support" href="#" target="_blank" rel="noreferrer">Открыть поддержку</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="top" style="border-top:1px solid var(--border);border-bottom:none">
+      <span class="muted">Все действия отправляются в бота через WebApp API. Ничего лишнего не сохраняется на стороне.</span>
     </div>
   </div>
+</div>
 
-  <script>
-    const display = document.getElementById("display");
+<script>
+(function(){
+  const tg = window.Telegram?.WebApp;
+  const t = (s)=>s; // простая заглушка i18n (вся локаль у бота)
 
-    function appendValue(val) {
-      display.innerText += val;
+  if(tg){
+    tg.ready();
+    tg.expand && tg.expand();
+    const tp = tg.themeParams || {};
+    if(tp.text_color){ document.body.style.color = tp.text_color; }
+    const user = tg.initDataUnsafe?.user;
+    if(user){
+      document.getElementById("who").textContent = `@${user.username || user.first_name || "user"}`;
+      document.getElementById("profile-line").textContent = `ID: ${user.id} · ${user.first_name || ""} ${user.last_name || ""}`;
     }
+  }
 
-    function clearDisplay() {
-      display.innerText = "";
-    }
+  const tabs = ["deal","wallets","ref","profile","lang","help"];
+  const showTab = (name)=> tabs.forEach(t=>document.getElementById(`tab-${t}`).style.display = (t===name)?"":"none");
+  document.querySelectorAll(".menu .item").forEach(el=> el.addEventListener("click", ()=> showTab(el.dataset.tab)));
+  showTab("deal");
 
-    function calculate() {
-      try {
-        display.innerText = eval(display.innerText) || "";
-      } catch {
-        display.innerText = "Ошибка";
-      }
-    }
+  const haptic = (type="impact")=>{
+    try{
+      if(!tg?.HapticFeedback) return;
+      if(type==="impact") tg.HapticFeedback.impactOccurred("medium");
+      if(type==="succ") tg.HapticFeedback.notificationOccurred("success");
+      if(type==="err") tg.HapticFeedback.notificationOccurred("error");
+    }catch(_){}
+  };
 
-    if (window.Telegram?.WebApp) {
-      Telegram.WebApp.ready();
-    }
-  </script>
+  const send = (payload)=>{
+    if(!tg){ alert("Откройте через Telegram"); return; }
+    tg.sendData(JSON.stringify(payload));
+    haptic("succ");
+  };
+
+  // Deal
+  document.getElementById("create-deal").addEventListener("click", ()=>{
+    const amount = parseFloat(document.getElementById("amount").value || "0");
+    const description = (document.getElementById("descr").value || "").trim();
+    const method = document.getElementById("method").value;
+    if(!(amount>0)){ haptic("err"); alert("Введите сумму > 0"); return; }
+    if(description.length<3){ haptic("err"); alert("Опишите сделку подробнее"); return; }
+    send({action:"create_deal", amount, description, payment_method: method});
+  });
+
+  // Wallets
+  document.getElementById("save-ton").addEventListener("click", ()=>{
+    const ton = (document.getElementById("ton").value || "").trim();
+    if(ton.length<10){ haptic("err"); alert("Введите корректный TON-адрес"); return; }
+    send({action:"set_wallet", kind:"ton", value: ton});
+  });
+  document.getElementById("save-card").addEventListener("click", ()=>{
+    const card = (document.getElementById("card").value || "").trim();
+    if(card.length<4){ haptic("err"); alert("Введите корректные реквизиты"); return; }
+    send({action:"set_wallet", kind:"card", value: card});
+  });
+
+  // Referral
+  document.getElementById("get-ref").addEventListener("click", ()=> send({action:"get_ref"}));
+
+  // Language
+  document.querySelectorAll("#tab-lang .btn[data-lang]").forEach(b=>{
+    b.addEventListener("click", ()=> send({action:"set_lang", lang: b.dataset.lang}));
+  });
+
+  // Support
+  const support = document.getElementById("support");
+  support.addEventListener("click", (e)=>{
+    // Ссылка на поддержку подставится у бота в ответе. Здесь — просто открытие SUPPORT_URL, если задан в initData
+    // Можно хранить в start_param, но проще — бот пришлёт сообщение.
+  });
+
+  // Close
+  document.getElementById("close-app").addEventListener("click", ()=> tg?.close && tg.close());
+})();
+</script>
 </body>
 </html>
