@@ -1,0 +1,40 @@
+# dependencies
+node_modules
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+build/
+dist/
+
+# env
+.env
+.env*.local
+.env.production
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# uploads (local dev)
+public/uploads/
+!public/uploads/.gitkeep
+
+# prisma
+/prisma/migrations/dev*
+
+# editor
+.vscode/
+.idea/

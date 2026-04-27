@@ -1,0 +1,180 @@
+// welv_bot — Prisma schema
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum CustomOrderStatus {
+  NEW
+  ACCEPTED
+  IN_PROGRESS
+  DELIVERED
+  REJECTED
+}
+
+enum PaymentProvider {
+  FAKE
+  STRIPE
+  YOOKASSA
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  passwordHash  String
+  role          Role           @default(USER)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  orders        Order[]
+  reviews       Review[]
+  customOrders  CustomOrder[]
+  downloads     Download[]
+}
+
+model Category {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  name        String
+  blurb       String?
+  emoji       String?
+  sort        Int        @default(0)
+  createdAt   DateTime   @default(now())
+
+  products    Product[]
+}
+
+model Product {
+  id            String      @id @default(cuid())
+  slug          String      @unique
+  title         String
+  shortDesc     String
+  description   String
+  // Prices stored as integer minor units (cents/kopeks)
+  priceUsdCents Int
+  priceRubKop   Int
+  format        String      // e.g. "FXP", "ZIP", "WAV", "PDF", "Service"
+  license       String      @default("Personal use, single artist")
+  compatibility String?     // e.g. "FL Studio 20+, Waves, FabFilter, Antares, Valhalla"
+  includes      String      // newline-separated list of included items
+  tags          String      // comma-separated tags
+  imageUrl      String?
+  fileUrl       String?     // download URL after purchase
+  featured      Boolean     @default(false)
+  popularity    Int         @default(0)
+  rating        Float       @default(5.0)
+  ratingCount   Int         @default(0)
+
+  categoryId    String
+  category      Category    @relation(fields: [categoryId], references: [id])
+
+  reviews       Review[]
+  orderItems    OrderItem[]
+  downloads     Download[]
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Order {
+  id              String           @id @default(cuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id])
+  status          OrderStatus      @default(PENDING)
+  provider        PaymentProvider  @default(FAKE)
+  providerRef     String?
+  totalUsdCents   Int
+  totalRubKop     Int
+  currency        String           @default("USD")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  paidAt          DateTime?
+
+  items           OrderItem[]
+  downloads       Download[]
+}
+
+model OrderItem {
+  id            String   @id @default(cuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  quantity      Int      @default(1)
+  priceUsdCents Int
+  priceRubKop   Int
+}
+
+model Download {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  token       String   @unique @default(cuid())
+  count       Int      @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  rating     Int
+  body       String
+  createdAt  DateTime @default(now())
+}
+
+model CustomOrder {
+  id          String              @id @default(cuid())
+  userId      String?
+  user        User?               @relation(fields: [userId], references: [id])
+  email       String
+  artistName  String
+  trackName   String?
+  type        String              // vocal preset / mix / cover / banner / beat / branding / tiktok / everything
+  genre       String?
+  mood        String?
+  references  String?
+  budget      String?
+  deadline    String?
+  plugins     String?
+  uploadUrl   String?
+  comments    String?
+  status      CustomOrderStatus   @default(NEW)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model AdminLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  action     String
+  target     String?
+  meta       String?
+  createdAt  DateTime @default(now())
+}
