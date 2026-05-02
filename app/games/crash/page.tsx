@@ -64,6 +64,13 @@ export default function CrashPage() {
       const m = Math.max(1, +Math.exp(0.18 * t).toFixed(2));
       setMultiplier(m);
 
+      // Crash wins ties: evaluate the crash point first so an auto-cashout
+      // equal to the crash multiplier loses, matching standard crash-game fairness.
+      if (m >= crashAtRef.current) {
+        finish("crashed", crashAtRef.current);
+        return;
+      }
+
       const auto = autoCashoutRef.current;
       if (
         typeof auto === "number" &&
@@ -72,12 +79,7 @@ export default function CrashPage() {
         m >= auto
       ) {
         cashedRef.current = true;
-        finish("cashed", Math.min(m, crashAtRef.current));
-        return;
-      }
-
-      if (m >= crashAtRef.current) {
-        finish("crashed", crashAtRef.current);
+        finish("cashed", auto);
         return;
       }
 

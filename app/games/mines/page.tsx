@@ -95,12 +95,22 @@ export default function MinesPage() {
     });
   }
 
-  function reset() {
+  function forfeit() {
+    if (!active) return;
     setActive(false);
-    setBomb(new Set());
-    setRevealed(new Set());
-    setExploded(null);
-    setResolved(null);
+    setResolved("loss");
+    if (coin) {
+      apply({
+        coinId,
+        bet,
+        payout: 0,
+        game: "mines",
+        note: `Mines · forfeited after ${revealed.size} safe picks (sandbox).`,
+      });
+      toast("Mines · forfeited", {
+        description: `Lost ${bet} ${coin.symbol} (sandbox).`,
+      });
+    }
   }
 
   return (
@@ -195,8 +205,8 @@ export default function MinesPage() {
                 >
                   Cash out {currentMultiplier.toFixed(2)}×
                 </button>
-                <button onClick={reset} className="btn-outline !h-12">
-                  Forfeit
+                <button onClick={forfeit} className="btn-outline !h-12">
+                  Forfeit (lose bet)
                 </button>
               </div>
             )}
