@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: #050507;
+  color: #f5f5f7;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+body {
+  min-height: 100vh;
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, rgba(255, 106, 0, 0.18), transparent 60%),
+    radial-gradient(900px 500px at -10% 100%, rgba(255, 45, 85, 0.14), transparent 60%),
+    radial-gradient(800px 500px at 50% 50%, rgba(80, 80, 120, 0.05), transparent 70%);
+  background-attachment: fixed;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.16); }
+
+@layer components {
+  .glass {
+    @apply bg-bg-panel border border-border-soft backdrop-blur-xl rounded-2xl;
+    background-image: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+  }
+  .glass-strong {
+    @apply bg-bg-panel border border-border-strong backdrop-blur-2xl rounded-2xl;
+    background-image: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.03) 100%
+    );
+  }
+  .accent-text {
+    background: linear-gradient(135deg, #ff8a3d 0%, #ff2d55 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 h-10 rounded-xl text-sm font-medium
+      transition-all duration-200 select-none;
+  }
+  .btn-primary {
+    @apply btn text-white shadow-glowSoft hover:shadow-glow active:scale-[0.98];
+    background-image: linear-gradient(135deg, #ff8a3d 0%, #ff6a00 45%, #ff2d55 100%);
+  }
+  .btn-ghost {
+    @apply btn text-white/85 bg-white/[0.04] hover:bg-white/[0.08] border border-border-soft;
+  }
+  .btn-outline {
+    @apply btn text-white/80 border border-border-soft hover:bg-white/[0.05];
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium tracking-wide;
+  }
+  .badge-demo {
+    @apply chip bg-amber-500/10 text-amber-300 border border-amber-400/20;
+  }
+  .badge-status-completed {
+    @apply chip bg-emerald-500/10 text-emerald-300 border border-emerald-400/20;
+  }
+  .badge-status-pending {
+    @apply chip bg-amber-500/10 text-amber-300 border border-amber-400/20;
+  }
+  .badge-status-failed {
+    @apply chip bg-rose-500/10 text-rose-300 border border-rose-400/20;
+  }
+  .field {
+    @apply w-full h-11 rounded-xl bg-white/[0.04] border border-border-soft px-3.5
+      text-sm placeholder:text-white/30 focus:outline-none focus:border-accent/60
+      focus:ring-2 focus:ring-accent/20 transition;
+  }
+  .label {
+    @apply text-xs uppercase tracking-[0.14em] text-white/45 font-medium;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: 12px;
+}
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+/* Number tabular for balance figures */
+.tabular { font-variant-numeric: tabular-nums; }
