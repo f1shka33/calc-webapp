@@ -21,7 +21,7 @@ export function formatUsd(value: number) {
 }
 
 export function formatCoin(value: number, symbol: string) {
-  return `${formatNumber(value, value < 1 ? 6 : 4)} ${symbol}`;
+  return `${formatNumber(value, Math.abs(value) < 1 ? 6 : 4)} ${symbol}`;
 }
 
 export function shortHash(hash: string, head = 6, tail = 4) {

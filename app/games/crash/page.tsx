@@ -29,10 +29,15 @@ export default function CrashPage() {
   const startedAtRef = useRef<number>(0);
   const cashedRef = useRef<boolean>(false);
   const phaseRef = useRef<Phase>("idle");
+  const autoCashoutRef = useRef<number | "">(2);
 
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
+
+  useEffect(() => {
+    autoCashoutRef.current = autoCashout;
+  }, [autoCashout]);
 
   useEffect(() => {
     return () => {
@@ -59,11 +64,12 @@ export default function CrashPage() {
       const m = Math.max(1, +Math.exp(0.18 * t).toFixed(2));
       setMultiplier(m);
 
+      const auto = autoCashoutRef.current;
       if (
-        typeof autoCashout === "number" &&
-        autoCashout > 1 &&
+        typeof auto === "number" &&
+        auto > 1 &&
         !cashedRef.current &&
-        m >= autoCashout
+        m >= auto
       ) {
         cashedRef.current = true;
         finish("cashed", Math.min(m, crashAtRef.current));

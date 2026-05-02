@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal } from "./Modal";
 import { useStore } from "@/lib/store";
 import { CoinIcon } from "./CoinIcon";
@@ -55,6 +55,10 @@ export function DepositModal({
     if (open && initialCoinId) setCoinId(initialCoinId);
   }, [open, initialCoinId]);
 
+  // Stable per-open fake address so it doesn't flicker on every keystroke.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- regenerate the address each time the modal opens
+  const demoAddress = useMemo(() => fakeAddress(), [open]);
+
   const coin = coins.find((c) => c.id === coinId);
 
   function submit() {
@@ -102,7 +106,7 @@ export function DepositModal({
         <div className="glass !p-3 text-[12px] text-white/55 flex items-center justify-between gap-3">
           <div>
             Demo deposit address:{" "}
-            <span className="font-mono text-white/85">{fakeAddress().slice(0, 22)}…</span>
+            <span className="font-mono text-white/85">{demoAddress.slice(0, 22)}…</span>
           </div>
           <span className="badge-demo">fake</span>
         </div>
