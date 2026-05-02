@@ -35,7 +35,7 @@ export function generateMockTransaction(coins: Coin[], opts: Partial<Transaction
     status,
     coinId: coin.id,
     amount,
-    usdValue: +(amount * coin.unitPrice).toFixed(2),
+    usdValue: +(Math.abs(amount) * coin.unitPrice).toFixed(2),
     hash: fakeTxHash(),
     address: type === "send" || type === "receive" ? fakeAddress() : undefined,
     game: type === "game_win" || type === "game_loss" ? pick(["roulette", "crash", "mines"]) : undefined,

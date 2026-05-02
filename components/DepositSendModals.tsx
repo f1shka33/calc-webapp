@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "./Modal";
 import { useStore } from "@/lib/store";
 import { CoinIcon } from "./CoinIcon";
@@ -50,6 +50,10 @@ export function DepositModal({
   const deposit = useStore((s) => s.deposit);
   const [coinId, setCoinId] = useState(initialCoinId ?? coins[0]?.id ?? "");
   const [amount, setAmount] = useState("100");
+
+  useEffect(() => {
+    if (open && initialCoinId) setCoinId(initialCoinId);
+  }, [open, initialCoinId]);
 
   const coin = coins.find((c) => c.id === coinId);
 
@@ -130,6 +134,10 @@ export function SendModal({
   const [coinId, setCoinId] = useState(initialCoinId ?? coins[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [address, setAddress] = useState("");
+
+  useEffect(() => {
+    if (open && initialCoinId) setCoinId(initialCoinId);
+  }, [open, initialCoinId]);
 
   const coin = coins.find((c) => c.id === coinId);
 
@@ -217,6 +225,10 @@ export function ConvertModal({
   const [fromId, setFromId] = useState(initialFromId ?? coins[0]?.id ?? "");
   const [toId, setToId] = useState(coins[1]?.id ?? coins[0]?.id ?? "");
   const [amount, setAmount] = useState("");
+
+  useEffect(() => {
+    if (open && initialFromId) setFromId(initialFromId);
+  }, [open, initialFromId]);
 
   const from = coins.find((c) => c.id === fromId);
   const to = coins.find((c) => c.id === toId);
