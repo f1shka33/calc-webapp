@@ -50,6 +50,15 @@ export default function RoulettePage() {
     if (bet <= 0) return toast.error("Bet must be positive");
     if (bet > coin.balance) return toast.error("Not enough demo balance");
 
+    // Lock the wager at click-time so the user changing coin/bet during the
+    // animation can't reroute the outcome to a different coin.
+    const lockedCoinId = coinId;
+    const lockedBet = bet;
+    const lockedCoin = coin;
+    const lockedBetType = betType;
+    const lockedBetColor = betColor;
+    const lockedBetNumber = betNumber;
+
     setSpinning(true);
     setResult(null);
     setResultLog(null);
@@ -65,14 +74,16 @@ export default function RoulettePage() {
       setResult(r);
       const c = rouletteColor(r);
       let payout = 0;
-      if (betType === "color" && betColor === c) payout = bet * settings.payoutColor;
-      if (betType === "number" && betNumber === r) payout = bet * settings.payoutNumber;
-      apply({ coinId, bet, payout, game: "roulette" });
+      if (lockedBetType === "color" && lockedBetColor === c)
+        payout = lockedBet * settings.payoutColor;
+      if (lockedBetType === "number" && lockedBetNumber === r)
+        payout = lockedBet * settings.payoutNumber;
+      apply({ coinId: lockedCoinId, bet: lockedBet, payout, game: "roulette" });
       pushSpin({
         id: uid("rl"),
-        bet,
-        betType,
-        betValue: betType === "color" ? betColor : betNumber,
+        bet: lockedBet,
+        betType: lockedBetType,
+        betValue: lockedBetType === "color" ? lockedBetColor : lockedBetNumber,
         result: r,
         payout,
         createdAt: Date.now(),
@@ -80,14 +91,17 @@ export default function RoulettePage() {
       const won = payout > 0;
       setResultLog(
         won
-          ? `Landed on ${r} (${c}). You won ${(payout - bet).toFixed(4)} ${coin.symbol} (sandbox).`
-          : `Landed on ${r} (${c}). Lost ${bet.toFixed(4)} ${coin.symbol} (sandbox).`,
+          ? `Landed on ${r} (${c}). You won ${(payout - lockedBet).toFixed(4)} ${lockedCoin.symbol} (sandbox).`
+          : `Landed on ${r} (${c}). Lost ${lockedBet.toFixed(4)} ${lockedCoin.symbol} (sandbox).`,
       );
       if (won)
         toast.success(`Roulette · WIN`, {
-          description: `+${(payout - bet).toFixed(4)} ${coin.symbol} (sandbox).`,
+          description: `+${(payout - lockedBet).toFixed(4)} ${lockedCoin.symbol} (sandbox).`,
         });
-      else toast.error(`Roulette · LOSS`, { description: `-${bet} ${coin.symbol} (sandbox).` });
+      else
+        toast.error(`Roulette · LOSS`, {
+          description: `-${lockedBet} ${lockedCoin.symbol} (sandbox).`,
+        });
       setSpinning(false);
     }, 3200);
   }
@@ -98,6 +112,7 @@ export default function RoulettePage() {
       description="European wheel with 37 pockets (0–36). Bet on a color or a single number. Sandbox-only — no real money."
       selectedCoinId={coinId}
       setSelectedCoinId={setCoinId}
+      locked={spinning}
     >
       <div className="grid lg:grid-cols-[1.3fr_1fr] gap-4">
         <GlassCard className="!p-6 grid place-items-center relative overflow-hidden">

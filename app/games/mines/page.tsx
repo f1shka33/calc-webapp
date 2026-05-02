@@ -5,7 +5,7 @@ import { BetInput, GameShell } from "@/components/GameShell";
 import { minesMultiplier } from "@/lib/games";
 import { useStore } from "@/lib/store";
 import { Bomb, Gem } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
@@ -26,6 +26,11 @@ export default function MinesPage() {
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
   const [exploded, setExploded] = useState<number | null>(null);
   const [resolved, setResolved] = useState<"win" | "loss" | null>(null);
+
+  // Lock the wager when a round starts so changing coin/bet mid-round can't
+  // route the outcome to the wrong coin or amount.
+  const roundCoinIdRef = useRef<string>("");
+  const roundBetRef = useRef<number>(0);
 
   const safePicks = revealed.size;
   const currentMultiplier = active
@@ -52,6 +57,8 @@ export default function MinesPage() {
     setRevealed(new Set());
     setExploded(null);
     setResolved(null);
+    roundCoinIdRef.current = coinId;
+    roundBetRef.current = bet;
     setActive(true);
   }
 
@@ -62,15 +69,18 @@ export default function MinesPage() {
       setRevealed(new Set([...revealed, idx]));
       setActive(false);
       setResolved("loss");
+      const lockedCoinId = roundCoinIdRef.current;
+      const lockedBet = roundBetRef.current;
+      const lockedCoin = coins.find((c) => c.id === lockedCoinId);
       apply({
-        coinId,
-        bet,
+        coinId: lockedCoinId,
+        bet: lockedBet,
         payout: 0,
         game: "mines",
         note: `Mines · hit a bomb after ${revealed.size} safe picks (sandbox).`,
       });
       toast.error("Mines · BOOM", {
-        description: `Lost ${bet} ${coin?.symbol ?? ""} (sandbox).`,
+        description: `Lost ${lockedBet} ${lockedCoin?.symbol ?? ""} (sandbox).`,
       });
       return;
     }
@@ -81,17 +91,20 @@ export default function MinesPage() {
     if (!active || revealed.size === 0) return;
     setActive(false);
     setResolved("win");
-    if (!coin) return;
-    const payout = +(bet * currentMultiplier).toFixed(6);
+    const lockedCoinId = roundCoinIdRef.current;
+    const lockedBet = roundBetRef.current;
+    const lockedCoin = coins.find((c) => c.id === lockedCoinId);
+    if (!lockedCoin) return;
+    const payout = +(lockedBet * currentMultiplier).toFixed(6);
     apply({
-      coinId,
-      bet,
+      coinId: lockedCoinId,
+      bet: lockedBet,
       payout,
       game: "mines",
       note: `Mines · cashed out at ${currentMultiplier.toFixed(2)}× (${revealed.size} picks, sandbox).`,
     });
     toast.success(`Mines · cashed out at ${currentMultiplier.toFixed(2)}×`, {
-      description: `+${(payout - bet).toFixed(4)} ${coin.symbol} (sandbox).`,
+      description: `+${(payout - lockedBet).toFixed(4)} ${lockedCoin.symbol} (sandbox).`,
     });
   }
 
@@ -99,18 +112,20 @@ export default function MinesPage() {
     if (!active) return;
     setActive(false);
     setResolved("loss");
-    if (coin) {
-      apply({
-        coinId,
-        bet,
-        payout: 0,
-        game: "mines",
-        note: `Mines · forfeited after ${revealed.size} safe picks (sandbox).`,
-      });
-      toast("Mines · forfeited", {
-        description: `Lost ${bet} ${coin.symbol} (sandbox).`,
-      });
-    }
+    const lockedCoinId = roundCoinIdRef.current;
+    const lockedBet = roundBetRef.current;
+    const lockedCoin = coins.find((c) => c.id === lockedCoinId);
+    if (!lockedCoin) return;
+    apply({
+      coinId: lockedCoinId,
+      bet: lockedBet,
+      payout: 0,
+      game: "mines",
+      note: `Mines · forfeited after ${revealed.size} safe picks (sandbox).`,
+    });
+    toast("Mines · forfeited", {
+      description: `Lost ${lockedBet} ${lockedCoin.symbol} (sandbox).`,
+    });
   }
 
   return (
@@ -119,6 +134,7 @@ export default function MinesPage() {
       description="Reveal safe cells to grow your multiplier. Hit a bomb and lose your bet. Sandbox only."
       selectedCoinId={coinId}
       setSelectedCoinId={setCoinId}
+      locked={active}
     >
       <div className="grid lg:grid-cols-[1.3fr_1fr] gap-4">
         <GlassCard className="!p-6">

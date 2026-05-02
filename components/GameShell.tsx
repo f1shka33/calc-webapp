@@ -14,12 +14,14 @@ export function GameShell({
   children,
   selectedCoinId,
   setSelectedCoinId,
+  locked = false,
 }: {
   title: string;
   description: string;
   children: ReactNode;
   selectedCoinId: string;
   setSelectedCoinId: (id: string) => void;
+  locked?: boolean;
 }) {
   const coins = useStore((s) => s.coins);
   return (
@@ -40,21 +42,27 @@ export function GameShell({
             <div className="mt-2"><SandboxNote>All bets use demo balance only.</SandboxNote></div>
           </div>
           <div className="glass !p-2 flex items-center gap-1.5 flex-wrap max-w-full">
-            {coins.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setSelectedCoinId(c.id)}
-                className={`flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-lg text-[12px] transition-all ${selectedCoinId === c.id ? "bg-accent/15 ring-1 ring-accent/40" : "hover:bg-white/[0.04]"}`}
-              >
-                <CoinIcon coin={c} size={22} />
-                <div className="text-left">
-                  <div className="font-semibold leading-none">{c.symbol}</div>
-                  <div className="tabular text-[10.5px] text-white/55 leading-tight">
-                    {formatCoin(c.balance, c.symbol)}
+            {coins.map((c) => {
+              const selected = selectedCoinId === c.id;
+              const disabled = locked && !selected;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => !locked && setSelectedCoinId(c.id)}
+                  disabled={disabled}
+                  title={locked ? "Locked while a round is active" : c.name}
+                  className={`flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-lg text-[12px] transition-all ${selected ? "bg-accent/15 ring-1 ring-accent/40" : "hover:bg-white/[0.04]"} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                >
+                  <CoinIcon coin={c} size={22} />
+                  <div className="text-left">
+                    <div className="font-semibold leading-none">{c.symbol}</div>
+                    <div className="tabular text-[10.5px] text-white/55 leading-tight">
+                      {formatCoin(c.balance, c.symbol)}
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </div>
       </GlassCard>

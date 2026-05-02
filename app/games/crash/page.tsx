@@ -30,6 +30,10 @@ export default function CrashPage() {
   const cashedRef = useRef<boolean>(false);
   const phaseRef = useRef<Phase>("idle");
   const autoCashoutRef = useRef<number | "">(2);
+  // Lock the wager when a round starts so changing coin/bet mid-round can't
+  // route the outcome to the wrong coin or amount.
+  const roundCoinIdRef = useRef<string>("");
+  const roundBetRef = useRef<number>(0);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -55,6 +59,8 @@ export default function CrashPage() {
     crashAtRef.current = target;
     cashedRef.current = false;
     startedAtRef.current = performance.now();
+    roundCoinIdRef.current = coinId;
+    roundBetRef.current = bet;
     setMultiplier(1);
     setPhase("running");
 
@@ -99,12 +105,15 @@ export default function CrashPage() {
     animRef.current = null;
     setMultiplier(at);
     setPhase(p);
-    if (!coin) return;
+    const lockedCoinId = roundCoinIdRef.current;
+    const lockedBet = roundBetRef.current;
+    const lockedCoin = coins.find((c) => c.id === lockedCoinId);
+    if (!lockedCoin) return;
     const won = p === "cashed";
-    const payout = won ? bet * at : 0;
+    const payout = won ? lockedBet * at : 0;
     apply({
-      coinId,
-      bet,
+      coinId: lockedCoinId,
+      bet: lockedBet,
       payout,
       game: "crash",
       note: won
@@ -115,17 +124,17 @@ export default function CrashPage() {
       id: uid("cr"),
       crashAt: crashAtRef.current,
       cashedOutAt: won ? at : undefined,
-      bet,
+      bet: lockedBet,
       payout,
       createdAt: Date.now(),
     });
     if (won)
       toast.success(`Crash · cashed out at ${at.toFixed(2)}×`, {
-        description: `+${(payout - bet).toFixed(4)} ${coin.symbol} (sandbox).`,
+        description: `+${(payout - lockedBet).toFixed(4)} ${lockedCoin.symbol} (sandbox).`,
       });
     else
       toast.error(`Crash · busted at ${at.toFixed(2)}×`, {
-        description: `-${bet} ${coin.symbol} (sandbox).`,
+        description: `-${lockedBet} ${lockedCoin.symbol} (sandbox).`,
       });
   }
 
@@ -142,6 +151,7 @@ export default function CrashPage() {
       description="The multiplier rises. Cash out before it crashes — or set an auto cash-out. Sandbox only."
       selectedCoinId={coinId}
       setSelectedCoinId={setCoinId}
+      locked={phase === "running"}
     >
       <div className="grid lg:grid-cols-[1.4fr_1fr] gap-4">
         <GlassCard className="!p-0 overflow-hidden relative h-[360px] sm:h-[440px]">
