@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1621" />
+  <title>ПРОВОКАТОР — симулятор злого модератора</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%A5%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <!-- Title screen -->
+  <section id="title-screen" class="screen visible">
+    <div class="title-bg"></div>
+    <div class="title-card">
+      <div class="logo">
+        <span class="logo-flame">🔥</span>
+        <h1>ПРОВОКАТОР</h1>
+        <p class="tagline">симулятор злого модератора</p>
+      </div>
+      <div class="brief">
+        <p>Ты — модератор. Снаружи — добрый дядя со значком <span class="b">🛡️</span>. Внутри — поджигатель срачей.</p>
+        <p>Твоя задача — разогнать <b class="grad">Градус</b> чата до неба, не спалившись перед админом и не забанив всех живых душ.</p>
+      </div>
+      <div class="hud-explainer">
+        <div class="hud-item"><span class="dot grad"></span><b>Градус</b> — растёт, должен быть высоким</div>
+        <div class="hud-item"><span class="dot sus"></span><b>Sus</b> — палевность, держи ниже 100</div>
+        <div class="hud-item"><span class="dot online"></span><b>Актив</b> — не забань всех</div>
+        <div class="hud-item"><span class="dot combo"></span><b>Срачемер</b> — множитель цепной реакции</div>
+      </div>
+      <div class="title-actions">
+        <button class="btn-primary" id="start-btn">НАЧАТЬ СМЕНУ</button>
+        <button class="btn-secondary" id="howto-btn">КАК ИГРАТЬ</button>
+      </div>
+      <div class="footer">v1.0 · использование шкалы Sus только в рамках развлечения</div>
+    </div>
+  </section>
+
+  <!-- Howto -->
+  <section id="howto-screen" class="screen modal">
+    <div class="modal-card">
+      <h2>Как играть</h2>
+      <ul class="howto-list">
+        <li><b>Наведи</b> на сообщение — появятся действия модератора.</li>
+        <li><b>Удалить / Бан</b> — стандартные тулзы. Но банить адекватов = +Sus.</li>
+        <li><b>Закрепить</b> провокацию = взлёт Градуса, но Sus тоже.</li>
+        <li><b>Тенебан</b> 👁️ — пользователь продолжает писать в пустоту, бесится и пишет жёстче. Бесконечное топливо для срача.</li>
+        <li><b>Газлайтинг</b> 🤖 — системное сообщение «Пользователь N был предупреждён за глупость». Бесит жертву, веселит чат.</li>
+        <li><b>Вброс от модера</b> 💬 — выбери провокационный тейк. Чат разделится на два лагеря. CD 60с.</li>
+        <li><b>Раздуть</b> 🔥 — усилить уже идущий конфликт. CD 45с.</li>
+        <li>Архетипы реагируют по-разному. Не банить адекватов и не игнорить терпил, иначе админ заметит.</li>
+        <li>Иногда заходит <b>АДМИН</b> — будь аккуратнее в эти секунды.</li>
+      </ul>
+      <button class="btn-primary" id="howto-close">ПОНЯЛ, ПОЕХАЛИ</button>
+    </div>
+  </section>
+
+  <!-- Game screen -->
+  <section id="game-screen" class="screen">
+    <!-- Top HUD -->
+    <header class="hud">
+      <div class="hud-left">
+        <div class="chat-meta">
+          <span class="chat-icon" id="chat-icon">🏠</span>
+          <div>
+            <div class="chat-name" id="chat-name">Чат жильцов д.5</div>
+            <div class="chat-sub"><span id="online-count">14</span> в сети · <span id="level-name">Смена 1</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="hud-center">
+        <div class="bar bar-grad">
+          <div class="bar-label">🔥 Градус <span id="grad-val">0</span> / <span id="grad-target">60</span></div>
+          <div class="bar-track"><div class="bar-fill grad-fill" id="grad-bar"></div><div class="bar-target-mark" id="grad-mark"></div></div>
+        </div>
+        <div class="bar bar-sus">
+          <div class="bar-label">👁️ Sus <span id="sus-val">0</span> / 100</div>
+          <div class="bar-track"><div class="bar-fill sus-fill" id="sus-bar"></div></div>
+        </div>
+        <div class="bar bar-online">
+          <div class="bar-label">👥 Актив <span id="online-val">14</span></div>
+          <div class="bar-track"><div class="bar-fill online-fill" id="online-bar"></div></div>
+        </div>
+      </div>
+      <div class="hud-right">
+        <div class="combo" id="combo-box"><div class="combo-label">Срачемер</div><div class="combo-val" id="combo-val">×1.0</div></div>
+        <button class="hud-btn" id="mute-btn" title="Звук">🔊</button>
+        <button class="hud-btn" id="pause-btn" title="Пауза">⏸️</button>
+      </div>
+    </header>
+
+    <!-- Goal banner -->
+    <div class="goal-bar">
+      <span id="goal-text">Доведи Градус до 60% и удерживай 30 секунд. Sus &lt; 100, Актив &gt; 4.</span>
+      <span class="hold-timer">Удержание: <b id="hold-time">0</b>с / <b id="hold-target">30</b>с</span>
+    </div>
+
+    <!-- Pinned message slot -->
+    <div class="pinned" id="pinned-area" hidden>
+      <span class="pin-ico">📌</span>
+      <span class="pin-author" id="pin-author"></span>
+      <span class="pin-text" id="pin-text"></span>
+      <button class="pin-close" id="pin-close" title="Открепить">×</button>
+    </div>
+
+    <!-- Chat feed -->
+    <main class="chat" id="chat">
+      <div class="chat-inner" id="chat-inner"></div>
+      <div class="chat-shadow-top"></div>
+      <div class="chat-shadow-bottom"></div>
+
+      <!-- Floating event toast -->
+      <div class="event-toast" id="event-toast" hidden></div>
+
+      <!-- Admin overlay -->
+      <div class="admin-overlay" id="admin-overlay" hidden>
+        <div class="admin-eye">👁️</div>
+        <div class="admin-text">АДМИН ЗАШЁЛ В ЧАТ</div>
+      </div>
+    </main>
+
+    <!-- Mod toolbar -->
+    <footer class="mod-bar">
+      <button class="mod-action" data-action="modpost" id="btn-modpost">
+        <span class="mod-ico">💬</span><span class="mod-label">Вброс</span>
+        <span class="cd-overlay" data-cd="modpost"></span>
+      </button>
+      <button class="mod-action" data-action="gaslight" id="btn-gaslight">
+        <span class="mod-ico">🤖</span><span class="mod-label">Газлайт</span>
+        <span class="cd-overlay" data-cd="gaslight"></span>
+      </button>
+      <button class="mod-action" data-action="fan" id="btn-fan">
+        <span class="mod-ico">🔥</span><span class="mod-label">Раздуть</span>
+        <span class="cd-overlay" data-cd="fan"></span>
+      </button>
+      <button class="mod-action" data-action="mass-mute" id="btn-mass">
+        <span class="mod-ico">🤐</span><span class="mod-label">Глушилка</span>
+        <span class="cd-overlay" data-cd="mass-mute"></span>
+      </button>
+      <div class="mod-spacer"></div>
+      <div class="mod-hint">Наведи на сообщение → выбери действие</div>
+    </footer>
+  </section>
+
+  <!-- Mod-post picker modal -->
+  <section id="modpost-screen" class="screen modal">
+    <div class="modal-card">
+      <h2>💬 Вброс от модера</h2>
+      <p class="muted">Выбери тейк, который расколет чат на лагеря. Большой буст Градусу, но Sus тоже подскочит.</p>
+      <div class="modpost-options" id="modpost-options"></div>
+      <button class="btn-secondary" id="modpost-cancel">отмена</button>
+    </div>
+  </section>
+
+  <!-- Level complete -->
+  <section id="winscreen" class="screen modal">
+    <div class="modal-card win-card">
+      <div class="win-rank" id="win-rank">S</div>
+      <h2>СМЕНА СДАНА</h2>
+      <div class="win-stats" id="win-stats"></div>
+      <button class="btn-primary" id="next-level-btn">СЛЕДУЮЩАЯ СМЕНА →</button>
+      <button class="btn-secondary" id="win-menu-btn">в меню</button>
+    </div>
+  </section>
+
+  <!-- Final win -->
+  <section id="finalwin" class="screen modal">
+    <div class="modal-card win-card">
+      <div class="win-rank">👑</div>
+      <h2>ТЫ — КОРОЛЬ СРАЧЕЙ</h2>
+      <p>Все три смены сданы. Админ ничего не заподозрил.<br/>Ты — лучший модератор, которого никогда не существовало.</p>
+      <div class="win-stats" id="final-stats"></div>
+      <button class="btn-primary" id="final-restart-btn">ИГРАТЬ ЗАНОВО</button>
+    </div>
+  </section>
+
+  <!-- Lose -->
+  <section id="losescreen" class="screen modal">
+    <div class="modal-card lose-card">
+      <div class="lose-icon" id="lose-icon">💀</div>
+      <h2 id="lose-title">ПРОВАЛ</h2>
+      <div class="lose-msg" id="lose-msg"></div>
+      <div class="lose-stats" id="lose-stats"></div>
+      <button class="btn-primary" id="retry-btn">ЕЩЁ РАЗ</button>
+      <button class="btn-secondary" id="lose-menu-btn">в меню</button>
+    </div>
+  </section>
+
+  <!-- Pause -->
+  <section id="pausescreen" class="screen modal">
+    <div class="modal-card">
+      <h2>ПАУЗА</h2>
+      <button class="btn-primary" id="resume-btn">продолжить</button>
+      <button class="btn-secondary" id="pause-menu-btn">в меню</button>
+    </div>
+  </section>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
