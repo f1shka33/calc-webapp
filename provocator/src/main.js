@@ -110,6 +110,11 @@ function spawnInitialUsers(count) {
     botSpam: Math.max(0, Math.round(count * 0.06)),
     newbie: Math.max(0, Math.round(count * 0.10))
   };
+  // Доли в сумме дают 0.92, а округление на разных count даёт разный остаток.
+  // Добиваем недостачу/срезаем избыток за счёт адекватов, чтобы фактический
+  // спавн совпадал с State.online и lose-кондишн по нулю онлайнов работал.
+  const totalSpawned = Object.values(counts).reduce((a, b) => a + b, 0);
+  counts.normie = Math.max(0, counts.normie + (count - totalSpawned));
   for (const [arch, n] of Object.entries(counts)) for (let i = 0; i < n; i++) makeUser(arch);
 }
 
@@ -243,7 +248,10 @@ function toast(msg, kind = "") {
 // =================== Применение действий к Toxicity / Sus ===================
 function applyTox(amount, sourceEl) {
   if (State.ended) return;
-  amount *= State.combo;
+  // Множитель Срачемера действует только на ПРИРОСТ Градуса —
+  // штрафы (defuse, бан адекватов и т.п.) применяются «как есть»,
+  // иначе высокий комбо ломал бы баланс наказаний.
+  if (amount > 0) amount *= State.combo;
   State.toxicity = clamp(State.toxicity + amount, 0, 100);
   if (State.toxicity > State.stats.peakGrad) State.stats.peakGrad = State.toxicity;
   if (amount > 0) {
@@ -388,10 +396,22 @@ function doBan(msg, sourceEl) {
     toast("Снитч в бане. Жди жалобу админу...", "warn");
   } else if (arch === "oldfag") {
     susDelta = 2;
-    // followers leave: -10..15% online
+    // Сначала вынимаем самого олдфага, чтобы removeUsers случайно его не выбрал
+    // (иначе State.online уйдёт в минус на 1 относительно фактического числа юзеров).
+    msg.user.status = "banned";
+    State.users.delete(msg.user.id);
+    State.online = Math.max(0, State.online - 1);
     const lost = Math.max(2, Math.round(State.online * (rand(0.1, 0.18))));
     removeUsers(lost, "fan-leave");
+    pushSystem(SYSTEM_TEMPLATES.ban(msg.user.name), "ban");
+    for (const [id, me] of [...State.msgEls.entries()]) {
+      if (me.msg.user && me.msg.user.id === msg.user.id) removeMsgEl(me.msg);
+    }
+    applySus(susDelta, sourceEl);
+    applyTox(toxDelta, sourceEl);
+    sfx.ban();
     toast(`Олдфаг забанен. ${lost} подписчиков ушли с ним.`, "warn");
+    return;
   } else if (arch === "trollSmart") {
     susDelta = 4; toxDelta = -3;
     toast("Толковый тролль ушёл. Минус движ.", "warn");
