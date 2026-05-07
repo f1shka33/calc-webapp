@@ -777,6 +777,15 @@
   // ────────────────────────────────────────────────────────────────────────
   function fmt(n, d = 1) { return Number(n).toFixed(d); }
 
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function drawSpectrum(canvas, spectrum) {
     const ctx = canvas.getContext('2d');
     const W = canvas.width = canvas.clientWidth * window.devicePixelRatio;
@@ -944,8 +953,9 @@
 
     async function handleFile(file) {
       lastFileName = file.name.replace(/\.[^.]+$/, '');
+      const safeName = escapeHtml(file.name);
       meta.classList.remove('hidden');
-      meta.innerHTML = `<div class="muted">📂 ${file.name} — ${(file.size / 1048576).toFixed(2)} MB</div><div class="muted">Декодирую…</div>`;
+      meta.innerHTML = `<div class="muted">📂 ${safeName} — ${(file.size / 1048576).toFixed(2)} MB</div><div class="muted">Декодирую…</div>`;
       results.classList.add('hidden');
       mixResult.classList.add('hidden');
       buttons.classList.add('hidden');
@@ -960,7 +970,7 @@
         origBlobUrl = URL.createObjectURL(file);
 
         meta.innerHTML = `
-          <div><b>${file.name}</b></div>
+          <div><b>${safeName}</b></div>
           <div class="muted">${audioBuffer.numberOfChannels} ch · ${audioBuffer.sampleRate} Hz · ${fmtTime(audioBuffer.duration)}</div>
         `;
         waveCv.classList.remove('hidden');
@@ -969,7 +979,7 @@
         requestAnimationFrame(() => drawWaveform(waveCv, audioBuffer));
       } catch (err) {
         console.error(err);
-        meta.innerHTML = `<div class="muted">Не удалось декодировать: ${err.message || err}</div>`;
+        meta.innerHTML = `<div class="muted">Не удалось декодировать: ${escapeHtml(err && err.message || err)}</div>`;
       }
     }
 
