@@ -610,7 +610,7 @@
     mudBell.type = 'peaking';
     mudBell.frequency.value = 320;
     mudBell.Q.value = 1.2;
-    mudBell.gain.value = lowmid > 30 ? -2.5 : (lowmid > 35 ? -3.5 : 0);
+    mudBell.gain.value = lowmid > 35 ? -3.5 : (lowmid > 30 ? -2.5 : 0);
 
     // 4) Bell at 3 kHz for presence
     const presBell = ctx.createBiquadFilter();
@@ -666,8 +666,26 @@
     let delta = targetLufs - lufs1; // positive ⇒ need louder
     delta = clamp(delta, -10, 10); // sanity
 
+    const eqApplied = {
+      lowShelf: lowShelf.gain.value,
+      mud: mudBell.gain.value,
+      presence: presBell.gain.value,
+      air: airShelf.gain.value,
+    };
+    const compApplied = {
+      compThreshold: comp.threshold.value,
+      compRatio: comp.ratio.value,
+    };
+
     if (Math.abs(delta) < 0.5) {
-      return { rendered: firstRender, makeupDb: 0, lufsBefore: report.lufs, lufsAfter: lufs1 };
+      return {
+        rendered: firstRender,
+        makeupDb: 0,
+        lufsBefore: report.lufs,
+        lufsAfter: lufs1,
+        eq: eqApplied,
+        ...compApplied,
+      };
     }
 
     // Second pass with corrected makeup
