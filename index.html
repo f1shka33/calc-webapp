@@ -3,15 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>MIDNIGHT · Escrow</title>
-  <link href="style.css" rel="stylesheet" />
+  <title>MIDNIGHT · Escrow + Track AI</title>
+  <link href="styles.css" rel="stylesheet" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
   <div id="root" class="app hidden">
     <header class="header glass">
       <div class="brand">
         <div class="logo-blob"></div>
-        <div class="titles"><h1>MIDNIGHT</h1><span class="sub">escrow</span></div>
+        <div class="titles"><h1>MIDNIGHT</h1><span class="sub">escrow · track-ai</span></div>
       </div>
       <div class="user-chip" id="user-chip">...</div>
     </header>
@@ -29,6 +30,8 @@
         </div>
         <p class="hint">Ссылка для покупателя придёт в чат.</p>
       </section>
+
+      <section id="page-trackai" class="page"></section>
 
       <section id="page-wallets" class="page">
         <h2>Кошельки</h2>
@@ -59,19 +62,19 @@
 
     <nav class="tabs glass">
       <button class="tab active" data-page="deal">🧾<span>Сделка</span></button>
+      <button class="tab" data-page="trackai">🎧<span>Track AI</span></button>
       <button class="tab" data-page="wallets">💳<span>Кошельки</span></button>
-      <button class="tab" data-page="ref">🧲<span>Рефералка</span></button>
+      <button class="tab" data-page="ref">🧲<span>Реф</span></button>
       <button class="tab" data-page="profile">👤<span>Профиль</span></button>
-      <button class="tab" data-page="lang">🌐<span>Язык</span></button>
-      <button class="tab" data-page="help">🛟<span>Поддержка</span></button>
+      <button class="tab" data-page="help">🛟<span>Помощь</span></button>
     </nav>
   </div>
 
   <div id="gate" class="gate">
     <div class="loader"><div class="ring"></div><div class="text">MIDNIGHT</div><div class="note">загрузка…</div></div>
-    <div class="notg hidden"><h3>Откройте в Telegram</h3><p>Откройте этот Web App внутри Telegram.</p><div class="fake-btn">Открыть в Telegram</div></div>
   </div>
 
+  <script src="track-ai.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
