@@ -576,9 +576,19 @@
   // Auto-Mix engine: render via OfflineAudioContext, return AudioBuffer
   // Decisions are derived from the analysis report.
   // ────────────────────────────────────────────────────────────────────────
+  // Compression intensity presets: how aggressively the glue compressor squeezes.
+  // soft = audiophile (light), medium = standard streaming master, hard = club/IG-loud.
+  const INTENSITY_PRESETS = {
+    soft:   { thresholdDelta: +4, ratioMul: 0.65, kneeDelta: +2, attack: 0.020, release: 0.220 },
+    medium: { thresholdDelta:  0, ratioMul: 1.00, kneeDelta:  0, attack: 0.010, release: 0.180 },
+    hard:   { thresholdDelta: -4, ratioMul: 1.50, kneeDelta: -2, attack: 0.005, release: 0.120 },
+  };
+
   async function autoMix(audioBuffer, report, opts = {}) {
-    const targetLufs = opts.targetLufs ?? -12;
+    const targetLufs = clamp(opts.targetLufs ?? -12, -24, -4);
     const maxTruePeak = opts.maxTruePeakDb ?? -1.0;
+    const intensityKey = (opts.intensity || 'medium').toLowerCase();
+    const intensity = INTENSITY_PRESETS[intensityKey] || INTENSITY_PRESETS.medium;
 
     const sub = report.bands.find(b => b.name === 'Sub').pct;
     const lowmid = report.bands.find(b => b.name === 'LowMid').pct;
@@ -625,13 +635,16 @@
     airShelf.frequency.value = 10000;
     airShelf.gain.value = air < 4 ? +2.5 : (air > 18 ? -1.5 : +0.5);
 
-    // 6) Glue compressor (master bus)
+    // 6) Glue compressor (master bus). Intensity preset offsets the auto-derived
+    //    base values (driven by report.crestDb).
+    const baseThreshold = report.crestDb < 8 ? -10 : -16;
+    const baseRatio = report.crestDb < 8 ? 1.6 : 2.5;
     const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = report.crestDb < 8 ? -10 : -16;
-    comp.knee.value = 8;
-    comp.ratio.value = report.crestDb < 8 ? 1.6 : 2.5;
-    comp.attack.value = 0.01;
-    comp.release.value = 0.18;
+    comp.threshold.value = clamp(baseThreshold + intensity.thresholdDelta, -30, -3);
+    comp.knee.value = clamp(8 + intensity.kneeDelta, 0, 18);
+    comp.ratio.value = clamp(baseRatio * intensity.ratioMul, 1.05, 12);
+    comp.attack.value = intensity.attack;
+    comp.release.value = intensity.release;
 
     // 7) Make-up gain pre-limiter (we'll refine via two-pass loudness measurement)
     const makeup = ctx.createGain();
@@ -773,6 +786,124 @@
   }
 
   // ────────────────────────────────────────────────────────────────────────
+  // Lyrics (Whisper via @xenova/transformers, browser WASM, no backend)
+  // ────────────────────────────────────────────────────────────────────────
+  // Lazy-loaded singleton pipeline. The model + tokenizer download (~40 MB
+  // quantized) only happens on the first call and is cached by the browser.
+  const TRANSFORMERS_CDN = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+  let _whisperPipe = null;
+  let _whisperLoading = null;
+
+  async function loadWhisperPipeline(onProgress) {
+    if (_whisperPipe) return _whisperPipe;
+    if (_whisperLoading) return _whisperLoading;
+    _whisperLoading = (async () => {
+      const mod = await import(TRANSFORMERS_CDN);
+      const { pipeline, env } = mod;
+      env.allowLocalModels = false;
+      env.useBrowserCache = true;
+      const transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
+        quantized: true,
+        progress_callback: (p) => {
+          if (!onProgress) return;
+          if (p && p.status === 'progress' && p.file) {
+            onProgress(clamp((p.progress || 0) / 100, 0, 0.95), `модель: ${p.file} ${Math.round(p.progress || 0)}%`);
+          } else if (p && p.status === 'done') {
+            onProgress(0.95, `модель готова`);
+          }
+        },
+      });
+      _whisperPipe = transcriber;
+      return transcriber;
+    })();
+    try { return await _whisperLoading; } finally { _whisperLoading = null; }
+  }
+
+  // Linearly resample mono Float32Array to 16 kHz (Whisper's required sample rate).
+  function resampleToWhisper(audioBuffer) {
+    const mono = mergeToMono(audioBuffer);
+    const target = 16000;
+    if (audioBuffer.sampleRate === target) return mono;
+    const ratio = audioBuffer.sampleRate / target;
+    const outLen = Math.floor(mono.length / ratio);
+    const out = new Float32Array(outLen);
+    for (let i = 0; i < outLen; i++) {
+      const idx = i * ratio;
+      const i0 = Math.floor(idx);
+      const frac = idx - i0;
+      out[i] = mono[i0] * (1 - frac) + (mono[i0 + 1] || 0) * frac;
+    }
+    return out;
+  }
+
+  async function transcribe(audioBuffer, onProgress = () => {}) {
+    onProgress(0.02, 'загрузка whisper-tiny…');
+    const transcriber = await loadWhisperPipeline(onProgress);
+    onProgress(0.96, 'ресемпл в 16 kHz…');
+    const audio = resampleToWhisper(audioBuffer);
+    onProgress(0.98, 'распознавание…');
+    const result = await transcriber(audio, {
+      chunk_length_s: 30,
+      stride_length_s: 5,
+      return_timestamps: true,
+      task: 'transcribe',
+    });
+    onProgress(1, 'готово');
+    return result; // { text, chunks: [{ text, timestamp: [start, end] }] }
+  }
+
+  function analyzeLyrics(whisperResult, durationSec) {
+    const text = (whisperResult && whisperResult.text || '').trim();
+    const chunks = (whisperResult && whisperResult.chunks) || [];
+    const lines = chunks.map(c => (c.text || '').trim()).filter(Boolean);
+    const words = text.split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+    const tokenize = (s) => s.toLowerCase()
+      .replace(/[^\p{L}\p{N}\s']/gu, ' ')
+      .split(/\s+/).filter(Boolean);
+    const tokens = tokenize(text);
+    const uniqueWords = new Set(tokens).size;
+    const vocabDiversity = tokens.length > 0 ? uniqueWords / tokens.length : 0;
+    const lineCount = lines.length;
+    const avgLineLen = lineCount > 0
+      ? lines.reduce((s, l) => s + tokenize(l).length, 0) / lineCount
+      : 0;
+    const dur = Math.max(1, durationSec || 1);
+    const wpm = wordCount > 0 ? wordCount / (dur / 60) : 0;
+
+    // Repeat detection: lines whose normalized form appears 2+ times → likely chorus / hook.
+    const lineCounts = new Map();
+    lines.forEach(l => {
+      const norm = tokenize(l).join(' ');
+      if (!norm || tokenize(l).length < 3) return;
+      lineCounts.set(norm, (lineCounts.get(norm) || 0) + 1);
+    });
+    const repeats = [...lineCounts.entries()]
+      .filter(([_, n]) => n >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([line, count]) => ({ line, count }));
+
+    // Cheap language guess: look at the chunks' detected langs if Whisper exposed it,
+    // otherwise infer from script (Cyrillic vs Latin) of the dominant tokens.
+    let cyr = 0, lat = 0;
+    for (const t of tokens) {
+      for (const ch of t) {
+        const code = ch.codePointAt(0);
+        if ((code >= 0x0400 && code <= 0x04FF) || (code >= 0x0500 && code <= 0x052F)) cyr++;
+        else if ((code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A)) lat++;
+      }
+    }
+    const language = cyr > lat ? 'ru' : (lat > 0 ? 'en' : 'unknown');
+
+    return {
+      text, chunks, lines, language,
+      wordCount, uniqueWords, vocabDiversity, lineCount, avgLineLen, wpm,
+      repeats,
+    };
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
   // UI
   // ────────────────────────────────────────────────────────────────────────
   function fmt(n, d = 1) { return Number(n).toFixed(d); }
@@ -859,21 +990,22 @@
   // ────────────────────────────────────────────────────────────────────────
   function mount(root) {
     root.innerHTML = `
-      <h2>ИИ-оценщик трека</h2>
-      <div class="card">
+      <h2 class="ai-h2">ИИ-оценщик трека</h2>
+      <div class="card ai-hero">
         <div class="ai-drop" id="ai-drop">
           <input id="ai-file" type="file" accept="audio/*" hidden />
           <div class="ai-drop-inner">
             <div class="ai-drop-emoji">🎧</div>
             <div class="ai-drop-title">Перетащи трек или <span class="ai-link">выбери файл</span></div>
-            <div class="ai-drop-sub muted">MP3, WAV, FLAC, M4A — анализ полностью на устройстве</div>
+            <div class="ai-drop-sub muted">MP3, WAV, FLAC, M4A — всё считается на устройстве, без серверов</div>
           </div>
         </div>
         <div class="ai-meta hidden" id="ai-meta"></div>
         <canvas id="ai-wave" class="ai-wave hidden"></canvas>
-        <div class="row ai-buttons hidden" id="ai-buttons">
-          <button id="ai-analyze" class="btn primary w100">🔬 Анализ</button>
-          <button id="ai-automix" class="btn ghost w100" disabled>🎚 Авто-сведение</button>
+        <div class="ai-actions hidden" id="ai-buttons">
+          <button id="ai-analyze" class="btn primary">🔬 Анализ</button>
+          <button id="ai-automix" class="btn ghost" disabled>🎚 Авто-сведение</button>
+          <button id="ai-lyrics" class="btn ghost" disabled>📝 Текст трека</button>
         </div>
         <div id="ai-progress" class="ai-progress hidden"><div class="ai-progress-bar"></div><div class="ai-progress-label">…</div></div>
       </div>
@@ -898,6 +1030,29 @@
         <ul class="ai-list rec" id="ai-recs"></ul>
       </div>
 
+      <div class="card hidden" id="ai-mix-controls">
+        <h3>🎛 Параметры авто-сведения</h3>
+        <div class="ai-slider-group">
+          <div class="ai-slider-head">
+            <span>Целевая громкость (LUFS)</span>
+            <span class="ai-slider-val" id="ai-lufs-val">−12.0</span>
+          </div>
+          <input id="ai-lufs-slider" type="range" min="-20" max="-6" step="0.5" value="-12" class="ai-range" />
+          <div class="ai-slider-scale"><span>−20 (тихо)</span><span>−14 стрим</span><span>−9 клуб</span><span>−6 макс</span></div>
+        </div>
+
+        <div class="ai-intensity">
+          <div class="ai-slider-head" style="margin-bottom:8px"><span>Интенсивность компрессии</span><span class="ai-slider-val" id="ai-intensity-val">medium</span></div>
+          <div class="ai-intensity-row">
+            <button class="ai-int-btn" data-intensity="soft">Мягко</button>
+            <button class="ai-int-btn active" data-intensity="medium">Средне</button>
+            <button class="ai-int-btn" data-intensity="hard">Жёстко</button>
+          </div>
+          <div class="muted ai-intensity-hint" id="ai-intensity-hint">Стандартный мастеринг под стриминг.</div>
+        </div>
+        <button id="ai-render" class="btn primary w100" style="margin-top:14px">🎚 Свести с этими настройками</button>
+      </div>
+
       <div class="card hidden" id="ai-mix-result">
         <h3>🎚 Авто-сведение готово</h3>
         <div class="ai-mix-stats" id="ai-mix-stats"></div>
@@ -906,6 +1061,14 @@
           <button id="ai-play-mix" class="btn primary w100">▶ Сведение</button>
         </div>
         <button id="ai-download" class="btn ghost w100" style="margin-top:10px">⬇ Скачать WAV</button>
+      </div>
+
+      <div class="card hidden" id="ai-lyrics-card">
+        <h3>📝 Текст трека</h3>
+        <div class="ai-lyrics-badges" id="ai-lyrics-badges"></div>
+        <div class="ai-lyrics-text" id="ai-lyrics-text"></div>
+        <h3 style="margin-top:16px">🔁 Повторы (потенциальный припев)</h3>
+        <ul class="ai-list rec" id="ai-lyrics-repeats"></ul>
       </div>
     `;
 
@@ -917,7 +1080,9 @@
     const buttons = $('#ai-buttons');
     const progress = $('#ai-progress');
     const results = $('#ai-results');
+    const mixControls = $('#ai-mix-controls');
     const mixResult = $('#ai-mix-result');
+    const lyricsCard = $('#ai-lyrics-card');
 
     let audioBuffer = null;
     let report = null;
@@ -927,6 +1092,15 @@
     let origBlob = null;
     let origBlobUrl = null;
     let lastFileName = 'track';
+    let intensity = 'medium';
+    let targetLufs = -12;
+    let lyrics = null;
+
+    const intensityHints = {
+      soft:   'Мягко: лёгкий «glue», бережёт динамику, для джаза/инди/акустики.',
+      medium: 'Средне: стандартный streaming-мастер, баланс громкости и динамики.',
+      hard:   'Жёстко: максимально плотно, в ущерб динамике — для трапа, EDM, IG-рилсов.',
+    };
 
     function toast(msg, kind = 'info') {
       const t = document.createElement('div');
@@ -957,9 +1131,14 @@
       meta.classList.remove('hidden');
       meta.innerHTML = `<div class="muted">📂 ${safeName} — ${(file.size / 1048576).toFixed(2)} MB</div><div class="muted">Декодирую…</div>`;
       results.classList.add('hidden');
+      mixControls.classList.add('hidden');
       mixResult.classList.add('hidden');
+      lyricsCard.classList.add('hidden');
       buttons.classList.add('hidden');
       waveCv.classList.add('hidden');
+      report = null;
+      mixed = null;
+      lyrics = null;
       try {
         const ab = await file.arrayBuffer();
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -976,6 +1155,7 @@
         waveCv.classList.remove('hidden');
         buttons.classList.remove('hidden');
         $('#ai-automix').disabled = true;
+        $('#ai-lyrics').disabled = false;
         requestAnimationFrame(() => drawWaveform(waveCv, audioBuffer));
       } catch (err) {
         console.error(err);
@@ -1004,6 +1184,7 @@
         renderReport(report, verdict);
         $('#ai-automix').disabled = false;
         results.classList.remove('hidden');
+        mixControls.classList.remove('hidden');
         toast('Анализ готов');
       } catch (e) {
         console.error(e);
@@ -1014,12 +1195,32 @@
       }
     });
 
-    $('#ai-automix').addEventListener('click', async () => {
-      if (!audioBuffer || !report) return;
+    // ── Mix controls (LUFS slider + intensity buttons) ──────────────────
+    const lufsSlider = $('#ai-lufs-slider');
+    const lufsVal = $('#ai-lufs-val');
+    lufsSlider.addEventListener('input', () => {
+      targetLufs = parseFloat(lufsSlider.value);
+      lufsVal.textContent = `−${Math.abs(targetLufs).toFixed(1)}`;
+    });
+    root.querySelectorAll('.ai-int-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        intensity = btn.dataset.intensity;
+        root.querySelectorAll('.ai-int-btn').forEach(b => b.classList.toggle('active', b === btn));
+        $('#ai-intensity-val').textContent = intensity;
+        $('#ai-intensity-hint').textContent = intensityHints[intensity] || '';
+      });
+    });
+
+    async function runMix() {
+      if (!audioBuffer || !report) {
+        toast('Сначала анализ', 'err');
+        return;
+      }
       try {
         $('#ai-automix').disabled = true;
-        setProgress(0.1, 'рендер мастер-цепочки…');
-        mixed = await autoMix(audioBuffer, report, { targetLufs: -12 });
+        $('#ai-render').disabled = true;
+        setProgress(0.1, `рендер: цель ${targetLufs} LUFS · ${intensity}…`);
+        mixed = await autoMix(audioBuffer, report, { targetLufs, intensity });
         setProgress(0.85, 'кодирую WAV…');
         const blob = audioBufferToWavBlob(mixed.rendered);
         if (mixedBlobUrl) URL.revokeObjectURL(mixedBlobUrl);
@@ -1033,6 +1234,37 @@
       } finally {
         hideProgress();
         $('#ai-automix').disabled = false;
+        $('#ai-render').disabled = false;
+      }
+    }
+    $('#ai-automix').addEventListener('click', () => {
+      if (!report) {
+        toast('Сначала анализ', 'err');
+        return;
+      }
+      mixControls.classList.remove('hidden');
+      mixControls.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      runMix();
+    });
+    $('#ai-render').addEventListener('click', runMix);
+
+    // ── Lyrics (Whisper) ────────────────────────────────────────────────
+    $('#ai-lyrics').addEventListener('click', async () => {
+      if (!audioBuffer) return;
+      try {
+        $('#ai-lyrics').disabled = true;
+        setProgress(0.01, 'инициализация whisper…');
+        const result = await transcribe(audioBuffer, setProgress);
+        lyrics = analyzeLyrics(result, audioBuffer.duration);
+        renderLyrics(lyrics);
+        lyricsCard.classList.remove('hidden');
+        toast('Текст распознан');
+      } catch (e) {
+        console.error(e);
+        toast('Ошибка распознавания: ' + (e.message || e), 'err');
+      } finally {
+        hideProgress();
+        $('#ai-lyrics').disabled = false;
       }
     });
 
@@ -1091,12 +1323,44 @@
     function renderMixResult(m, blob) {
       const eq = m.eq || {};
       $('#ai-mix-stats').innerHTML = `
+        <div class="ai-mix-row"><b>Цель:</b> ${fmt(targetLufs, 1)} LUFS · интенсивность <b>${intensity}</b></div>
         <div class="ai-mix-row"><b>LUFS:</b> ${fmt(m.lufsBefore, 1)} → ${fmt(m.lufsAfter, 1)}</div>
         <div class="ai-mix-row"><b>Make-up:</b> ${m.makeupDb >= 0 ? '+' : ''}${fmt(m.makeupDb, 1)} dB</div>
         <div class="ai-mix-row"><b>EQ:</b> low ${fmt(eq.lowShelf || 0, 1)} dB · mud ${fmt(eq.mud || 0, 1)} dB · presence ${fmt(eq.presence || 0, 1)} dB · air ${fmt(eq.air || 0, 1)} dB</div>
         <div class="ai-mix-row"><b>Comp:</b> threshold ${fmt(m.compThreshold, 1)} dB · ratio ${fmt(m.compRatio, 1)}:1</div>
         <div class="ai-mix-row"><b>Размер:</b> ${(blob.size / 1048576).toFixed(2)} MB</div>
       `;
+    }
+
+    function renderLyrics(L) {
+      const langLabel = L.language === 'ru' ? '🇷🇺 русский' : (L.language === 'en' ? '🇬🇧 english' : '🌐 ' + L.language);
+      $('#ai-lyrics-badges').innerHTML = `
+        <span class="ai-badge">${langLabel}</span>
+        <span class="ai-badge">${L.wordCount} слов</span>
+        <span class="ai-badge">${L.uniqueWords} уник.</span>
+        <span class="ai-badge">${fmt(L.vocabDiversity * 100, 0)}% разнообразие</span>
+        <span class="ai-badge">${fmt(L.wpm, 0)} слов/мин</span>
+        <span class="ai-badge">${L.lineCount} строк · ср. ${fmt(L.avgLineLen, 1)} слов</span>
+      `;
+      const text = $('#ai-lyrics-text');
+      if (L.chunks && L.chunks.length) {
+        text.innerHTML = L.chunks.map(c => {
+          const t0 = (c.timestamp && typeof c.timestamp[0] === 'number') ? c.timestamp[0] : 0;
+          const m = Math.floor(t0 / 60), s = Math.floor(t0 % 60);
+          const stamp = `${m}:${s.toString().padStart(2, '0')}`;
+          return `<div class="ai-lyrics-line"><span class="ai-lyrics-ts">${stamp}</span><span>${escapeHtml(c.text || '')}</span></div>`;
+        }).join('');
+      } else {
+        text.innerHTML = `<div>${escapeHtml(L.text)}</div>`;
+      }
+      const repUl = $('#ai-lyrics-repeats'); repUl.innerHTML = '';
+      if (L.repeats.length) {
+        L.repeats.forEach(r => {
+          repUl.innerHTML += `<li><b>×${r.count}</b> ${escapeHtml(r.line)}</li>`;
+        });
+      } else {
+        repUl.innerHTML = '<li class="muted">Повторяющихся строк не нашёл — мало структурного припева.</li>';
+      }
     }
 
     $('#ai-play-orig').addEventListener('click', () => {
@@ -1125,5 +1389,5 @@
     });
   }
 
-  window.TrackAI = { mount, analyzeAudio, autoMix, audioBufferToWavBlob };
+  window.TrackAI = { mount, analyzeAudio, autoMix, audioBufferToWavBlob, transcribe, analyzeLyrics };
 })();

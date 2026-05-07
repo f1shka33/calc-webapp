@@ -76,6 +76,36 @@ body{background:radial-gradient(1200px 900px at 10% -10%,var(--bg2),var(--bg));c
 .ai-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .ai-toast.err{border-color:rgba(248,113,113,.5)}
 
+/* Action row (analyze / mix / lyrics) */
+.ai-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+@media(max-width:560px){.ai-actions{grid-template-columns:1fr 1fr}.ai-actions>:last-child{grid-column:1/-1}}
+
+/* Mix-controls card */
+.ai-slider-group{margin-top:6px}
+.ai-slider-head{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;letter-spacing:.2px}
+.ai-slider-val{font-variant-numeric:tabular-nums;color:var(--acc2);font-weight:800}
+.ai-slider-scale{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:6px}
+.ai-range{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent;margin-top:8px}
+.ai-range:focus{outline:none}
+.ai-range::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--acc1),var(--acc2));border:1px solid var(--border)}
+.ai-range::-moz-range-track{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--acc1),var(--acc2));border:1px solid var(--border)}
+.ai-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:#0a0a0f;border:2px solid var(--acc2);box-shadow:0 4px 16px rgba(34,211,238,.45);margin-top:-9px;cursor:pointer}
+.ai-range::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#0a0a0f;border:2px solid var(--acc2);box-shadow:0 4px 16px rgba(34,211,238,.45);cursor:pointer}
+
+.ai-intensity{margin-top:18px}
+.ai-intensity-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.ai-int-btn{padding:10px 6px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:.15s ease}
+.ai-int-btn:hover{background:rgba(255,255,255,.08)}
+.ai-int-btn.active{background:linear-gradient(180deg,var(--acc1),var(--acc2));color:#061018;border-color:transparent;box-shadow:0 8px 24px rgba(34,211,238,.25)}
+.ai-intensity-hint{margin-top:8px;font-size:12px;line-height:1.5}
+
+/* Lyrics */
+.ai-lyrics-badges{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.ai-badge{display:inline-flex;align-items:center;font-size:11px;padding:5px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.05);color:var(--txt);letter-spacing:.2px;font-weight:600}
+.ai-lyrics-text{display:flex;flex-direction:column;gap:4px;max-height:340px;overflow-y:auto;padding:10px;border-radius:12px;background:rgba(0,0,0,.3);border:1px solid var(--border);font-size:13px;line-height:1.55}
+.ai-lyrics-line{display:grid;grid-template-columns:46px 1fr;gap:8px;align-items:start}
+.ai-lyrics-ts{color:var(--acc2);font-variant-numeric:tabular-nums;font-weight:700;font-size:11px;padding-top:2px}
+
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes fadeSlide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes spin{to{transform:rotate(360deg)}}
